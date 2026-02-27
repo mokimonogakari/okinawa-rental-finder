@@ -1,0 +1,12 @@
+scrapy>=2.11,<3.0
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+pyyaml>=6.0
+streamlit>=1.39
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+plotly>=5.22
+python-dotenv>=1.0
+schedule>=1.2

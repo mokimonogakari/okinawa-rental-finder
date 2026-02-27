@@ -1,0 +1,25 @@
+# ドメインがある場合: your-domain.com に置き換え
+# ドメインなしの場合: :80 のみ (自動SSL無効)
+
+:80 {
+    reverse_proxy localhost:8501
+
+    # Streamlit WebSocket対応
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @websockets localhost:8501
+
+    # 基本的なセキュリティヘッダ
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    log {
+        output file /var/log/caddy/okinawa-rental.log
+        format json
+    }
+}

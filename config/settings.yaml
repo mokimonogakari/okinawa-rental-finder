@@ -1,0 +1,34 @@
+app:
+  name: "沖縄賃貸ファインダー"
+  version: "1.0.0"
+  timezone: "Asia/Tokyo"
+
+database:
+  path: "./data/okinawa_rental.db"
+  wal_mode: true
+
+web:
+  port: 8501
+  host: "0.0.0.0"
+
+scraping:
+  user_agent: "OkinawaRentalFinder/1.0 (+https://github.com/yourname/okinawa-rental-finder)"
+  concurrent_requests: 1
+  download_delay_default: 4.0
+  retry_times: 3
+  run_hour: 3  # 深夜3時に実行
+
+pricing:
+  min_samples_for_training: 200
+  retrain_schedule: "weekly"  # weekly | daily
+  model_type: "random_forest"  # ridge | random_forest
+  confidence_interval: 0.9
+
+notification:
+  enabled: true
+  schedule: "0 8 * * *"  # 毎朝8時
+  mode: "batch"  # batch | realtime
+
+api_keys:
+  reinfolib: "${REINFOLIB_API_KEY}"
+  line_notify: "${LINE_NOTIFY_TOKEN}"

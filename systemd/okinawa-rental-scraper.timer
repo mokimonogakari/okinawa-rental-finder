@@ -1,0 +1,11 @@
+[Unit]
+Description=沖縄賃貸ファインダー スクレイピング定期実行
+
+[Timer]
+# 毎日深夜3時に実行
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

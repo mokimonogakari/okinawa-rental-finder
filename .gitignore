@@ -1,0 +1,42 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables
+.env
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Model files
+data/models/*.pkl
+data/models/*.joblib
+
+# Downloaded data
+data/land_price/*.zip
+data/land_price/*.geojson
+data/land_price/*.shp
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scrapy
+.scrapy/
+
+# Logs
+*.log
+logs/

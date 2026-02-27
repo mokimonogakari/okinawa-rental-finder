@@ -1,0 +1,46 @@
+targets:
+  goohome:
+    enabled: true
+    base_url: "https://goohome.jp"
+    category: "rent"
+    area: "okinawa"
+    delay: 3.0
+    schedule: "0 3 * * *"
+    priority: 1
+    description: "沖縄最大級ローカル不動産サイト"
+
+  uchina:
+    enabled: true
+    base_url: "https://e-uchina.net"
+    category: "chintai"
+    delay: 4.0
+    schedule: "0 3 30 * *"
+    priority: 2
+    description: "うちなーらいふ - 沖縄特化物件サイト"
+
+  suumo:
+    enabled: true
+    base_url: "https://suumo.jp"
+    path: "/chintai/okinawa/"
+    delay: 5.0
+    schedule: "0 4 * * *"
+    priority: 3
+    description: "全国最大手不動産ポータル"
+
+  homes:
+    enabled: true
+    base_url: "https://www.homes.co.jp"
+    path: "/chintai/okinawa/"
+    delay: 5.0
+    schedule: "0 5 * * *"
+    priority: 4
+    description: "LIFULL HOME'S - 全国2位ポータル"
+
+scraping_policy:
+  respect_robots_txt: true
+  max_concurrent_requests_per_domain: 1
+  autothrottle_enabled: true
+  autothrottle_target_concurrency: 0.5
+  request_headers:
+    Accept: "text/html,application/xhtml+xml"
+    Accept-Language: "ja,en;q=0.9"

@@ -1,0 +1,16 @@
+[Unit]
+Description=沖縄賃貸ファインダー Web UI (Streamlit)
+After=network.target
+
+[Service]
+Type=simple
+User=okinawa-rental
+WorkingDirectory=/opt/okinawa-rental-finder
+Environment=PATH=/opt/okinawa-rental-finder/.venv/bin:/usr/bin
+EnvironmentFile=/opt/okinawa-rental-finder/.env
+ExecStart=/opt/okinawa-rental-finder/.venv/bin/streamlit run src/web/app.py --server.port 8501 --server.headless true
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,291 @@
+# ===================================================
+# 検索条件マスタ定義 (宅建士監修)
+# 沖縄県の賃貸物件に特化した条件設計
+# ===================================================
+
+# --- エリア定義 (沖縄県全域) ---
+areas:
+  南部:
+    - { code: "47201", name: "那覇市" }
+    - { code: "47208", name: "豊見城市" }
+    - { code: "47215", name: "南城市" }
+    - { code: "47204", name: "糸満市" }
+    - { code: "47326", name: "南風原町" }
+    - { code: "47325", name: "与那原町" }
+    - { code: "47329", name: "八重瀬町" }
+  中部:
+    - { code: "47211", name: "沖縄市" }
+    - { code: "47213", name: "うるま市" }
+    - { code: "47205", name: "宜野湾市" }
+    - { code: "47206", name: "浦添市" }
+    - { code: "47326", name: "北谷町" }
+    - { code: "47324", name: "嘉手納町" }
+    - { code: "47314", name: "読谷村" }
+    - { code: "47317", name: "中城村" }
+    - { code: "47322", name: "西原町" }
+    - { code: "47318", name: "北中城村" }
+  北部:
+    - { code: "47209", name: "名護市" }
+    - { code: "47308", name: "本部町" }
+    - { code: "47311", name: "恩納村" }
+    - { code: "47313", name: "金武町" }
+    - { code: "47312", name: "宜野座村" }
+    - { code: "47302", name: "国頭村" }
+    - { code: "47303", name: "大宜味村" }
+    - { code: "47306", name: "東村" }
+    - { code: "47304", name: "今帰仁村" }
+  離島:
+    - { code: "47214", name: "宮古島市" }
+    - { code: "47202", name: "石垣市" }
+    - { code: "47381", name: "久米島町" }
+    - { code: "47382", name: "竹富町" }
+    - { code: "47383", name: "与那国町" }
+
+# --- 賃料 ---
+rent:
+  min: 10000
+  max: 300000
+  step: 5000
+  unit: "円"
+  note: "管理費・共益費を含めた総額表示オプションあり"
+
+management_fee:
+  max: 20000
+  step: 1000
+  unit: "円"
+
+# --- 間取り ---
+floor_plan:
+  options:
+    - "1R"
+    - "1K"
+    - "1DK"
+    - "1LDK"
+    - "2K"
+    - "2DK"
+    - "2LDK"
+    - "3K"
+    - "3DK"
+    - "3LDK"
+    - "4K以上"
+
+# --- 専有面積 ---
+area_size:
+  min: 15
+  max: 200
+  unit: "㎡"
+  note: "壁芯面積。登記面積(内法)とは異なる場合あり"
+
+# --- 築年数 ---
+building_age:
+  options:
+    - { label: "新築", value: 0 }
+    - { label: "3年以内", value: 3 }
+    - { label: "5年以内", value: 5 }
+    - { label: "10年以内", value: 10 }
+    - { label: "15年以内", value: 15 }
+    - { label: "20年以内", value: 20 }
+    - { label: "25年以内", value: 25 }
+    - { label: "30年以内", value: 30 }
+    - { label: "指定なし", value: null }
+
+# --- 物件種別 ---
+property_type:
+  options:
+    - "マンション"
+    - "アパート"
+    - "一戸建て"
+    - "テラスハウス"
+
+# --- 構造 (沖縄特有: 台風・塩害考慮) ---
+structure:
+  options:
+    - label: "RC (鉄筋コンクリート)"
+      value: "RC"
+      okinawa_note: "台風・塩害に最も強い。沖縄では最も推奨される構造"
+    - label: "SRC (鉄骨鉄筋コンクリート)"
+      value: "SRC"
+      okinawa_note: "RC同等の耐久性。大規模マンションに多い"
+    - label: "鉄骨造"
+      value: "S"
+      okinawa_note: "塩害による鉄骨腐食に注意。防錆処理の確認を推奨"
+    - label: "軽量鉄骨造"
+      value: "LS"
+      okinawa_note: "塩害リスクやや高い。築浅物件を推奨"
+    - label: "木造"
+      value: "W"
+      okinawa_note: "台風・シロアリ・湿気リスク。築浅かつ適切な防蟻処理が必須"
+
+# --- 階数 ---
+floor:
+  options:
+    - { label: "指定なし", value: null }
+    - { label: "1階", value: 1, note: "浸水リスクあり。防犯面で留意" }
+    - { label: "2階以上", value: 2 }
+    - { label: "3階以上", value: 3 }
+    - { label: "最上階", value: "top" }
+
+# ===================================================
+# 沖縄特有条件
+# ===================================================
+
+# --- 駐車場 (沖縄は車社会で必須級) ---
+parking:
+  default: "required"
+  options:
+    - { label: "必須", value: "required" }
+    - { label: "希望", value: "preferred" }
+    - { label: "不要", value: "none" }
+  spaces: [1, 2]
+  max_fee: 10000
+  fee_unit: "円/月"
+  note: "沖縄はモノレール沿線以外ほぼ車が必要。駐車場付き物件を強く推奨"
+
+# --- 交通アクセス ---
+transport:
+  monorail:
+    label: "ゆいレール"
+    max_walk_minutes: [5, 10, 15, 20, 30]
+    note: "那覇空港〜てだこ浦西駅間のみ (約17km)"
+    stations:
+      - "那覇空港"
+      - "赤嶺"
+      - "小禄"
+      - "奥武山公園"
+      - "壺川"
+      - "旭橋"
+      - "県庁前"
+      - "美栄橋"
+      - "牧志"
+      - "安里"
+      - "おもろまち"
+      - "古島"
+      - "市立病院前"
+      - "儀保"
+      - "首里"
+      - "石嶺"
+      - "経塚"
+      - "浦添前田"
+      - "てだこ浦西"
+  bus:
+    label: "バス停"
+    max_walk_minutes: [5, 10, 15, 20]
+    note: "沖縄の主要公共交通。路線バスのカバー範囲は広い"
+
+# --- 基地騒音 (沖縄特有の重要事項) ---
+base_noise:
+  label: "米軍基地騒音区域"
+  options:
+    - { label: "区域外のみ", value: "exclude" }
+    - { label: "気にしない", value: "any" }
+  affected_areas:
+    - "嘉手納町"
+    - "北谷町"
+    - "北中城村"
+    - "宜野湾市"
+    - "沖縄市"
+    - "金武町"
+    - "読谷村"
+  note: "普天間飛行場・嘉手納飛行場の周辺は航空機騒音が顕著"
+
+# ===================================================
+# 設備条件
+# ===================================================
+equipment:
+  essential:
+    - { key: "aircon", label: "エアコン", priority: "★★★", note: "亜熱帯気候で実質必須" }
+    - { key: "indoor_laundry", label: "室内洗濯機置場", priority: "★★", note: "塩害・台風で屋外設置は劣化が早い" }
+    - { key: "bath_dryer", label: "浴室乾燥機", priority: "★★", note: "梅雨・台風時期の室内干しに重宝" }
+    - { key: "flooring", label: "フローリング", priority: "★", note: "高湿度環境で畳よりカビ対策が容易" }
+  comfort:
+    - { key: "bath_toilet_separate", label: "バストイレ別" }
+    - { key: "reheating", label: "追い焚き" }
+    - { key: "washstand", label: "独立洗面台" }
+    - { key: "auto_lock", label: "オートロック" }
+    - { key: "delivery_box", label: "宅配ボックス" }
+  internet:
+    - { key: "internet", label: "インターネット対応" }
+    - { key: "fiber", label: "光ファイバー対応" }
+  pet:
+    - { key: "pet_ok", label: "ペット可" }
+    - { key: "pet_negotiable", label: "ペット相談" }
+
+# ===================================================
+# 契約条件 (宅建業法に基づく重要事項)
+# ===================================================
+contract:
+  deposit:
+    label: "敷金"
+    options: [0, 0.5, 1, 2, 3]
+    unit: "ヶ月"
+    legal_note: >
+      退去時に原状回復費用を差し引いて返還される。
+      国土交通省「原状回復をめぐるトラブルとガイドライン」参照。
+      通常使用による損耗・経年変化は貸主負担が原則。
+  key_money:
+    label: "礼金"
+    options: [0, 0.5, 1, 2]
+    unit: "ヶ月"
+    legal_note: "返還されない金銭。沖縄では礼金なしの物件も多い"
+  security_deposit:
+    label: "保証金"
+    note: "沖縄では敷金の代わりに保証金を徴収する慣習がある地域あり"
+  brokerage_fee:
+    label: "仲介手数料"
+    max_months: 1.1
+    legal_note: >
+      宅建業法46条: 居住用賃貸の媒介報酬は、
+      依頼者の一方から受領できる上限は賃料の0.55ヶ月分(税込)。
+      ただし依頼者の承諾があれば1.1ヶ月分まで可能。
+  guarantor:
+    label: "保証会社"
+    options:
+      - { label: "利用必須", value: "required" }
+      - { label: "利用可", value: "available" }
+      - { label: "不要", value: "none" }
+    note: "近年は保証会社必須の物件が増加傾向"
+  lease_type:
+    label: "契約形態"
+    options:
+      - label: "普通借家契約"
+        value: "ordinary"
+        note: "正当事由がない限り更新可能 (借地借家法28条)"
+      - label: "定期借家契約"
+        value: "fixed"
+        note: "契約期間満了で終了。更新なし (借地借家法38条)。期間・条件を必ず確認"
+
+# ===================================================
+# ハザード・安全性条件 (宅建業法35条: 重要事項説明義務)
+# ===================================================
+hazard:
+  flood:
+    label: "洪水浸水想定区域"
+    options: ["区域外のみ", "指定なし"]
+    data_source: "国土数値情報"
+    legal_basis: "宅建業法35条1項14号 (2020年法改正で説明義務化)"
+  tsunami:
+    label: "津波浸水想定区域"
+    options: ["区域外のみ", "指定なし"]
+    data_source: "沖縄県ハザードマップ"
+    note: "沖縄は海岸沿いエリアが多く、津波リスクの確認は特に重要"
+  landslide:
+    label: "土砂災害警戒区域"
+    options: ["区域外のみ", "指定なし"]
+    data_source: "国土数値情報"
+    legal_basis: "宅建業法35条1項14号"
+  zoning:
+    label: "用途地域"
+    options:
+      - "第一種低層住居専用地域"
+      - "第二種低層住居専用地域"
+      - "第一種中高層住居専用地域"
+      - "第二種中高層住居専用地域"
+      - "第一種住居地域"
+      - "第二種住居地域"
+      - "準住居地域"
+      - "近隣商業地域"
+      - "商業地域"
+      - "準工業地域"
+      - "指定なし"
+    data_source: "不動産情報ライブラリAPI (XKT001)"
+    note: "用途地域により建築可能な建物の種類・規模が制限される"

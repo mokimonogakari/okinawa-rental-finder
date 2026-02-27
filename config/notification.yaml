@@ -1,0 +1,33 @@
+# LINE Notify 通知設定
+line_notify:
+  enabled: true
+  token: "${LINE_NOTIFY_TOKEN}"
+  endpoint: "https://notify-api.line.me/api/notify"
+
+schedule:
+  mode: "batch"  # batch: まとめ通知 | realtime: 即時通知
+  batch_time: "08:00"  # バッチ通知の送信時刻
+  timezone: "Asia/Tokyo"
+  max_items_per_notification: 10
+
+# 通知テンプレート
+template:
+  new_property: |
+    🏠 新着物件
+    📍 {location}
+    💰 {rent}円/月 (管理費: {management_fee}円)
+    🏗 {floor_plan} / {area_size}㎡ / 築{building_age}年
+    🅿 駐車場: {parking}
+    📊 割安度: {affordability_score}
+    🔗 {url}
+
+  daily_summary: |
+    📋 本日の新着: {count}件
+    💡 お得物件: {bargain_count}件
+    ---
+    {items}
+
+# 通知条件フィルタ (保存した検索条件に合致する物件のみ通知)
+filters:
+  notify_only_bargains: false  # trueの場合、割安度スコア0.85以下のみ通知
+  bargain_threshold: 0.85
