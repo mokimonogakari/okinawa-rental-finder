@@ -1,10 +1,38 @@
-"""グーホーム (goohome.jp) スパイダー - 沖縄最大級ローカル不動産サイト"""
+"""グーホーム (goohome.jp) スパイダー - 沖縄最大級ローカル不動産サイト
+
+実サイトのHTML構造 (2026年2月確認):
+- 物件カード: section.insp_caset
+- メインコンテナ: div.inside_box[pno="xxx-xxxx"] (pno属性=物件ID)
+- 賃料: span.price ("8.45") + span.price_name ("万円")
+- 管理費: span.price_kanri ("管理費等:4,000円")
+- 敷金/礼金: span.price_sikirei ("敷1ヶ月/礼1ヶ月")
+- 保証金: span.price_hosyou ("保証金:-")
+- 間取り: span.floor_plan ("1LDK")
+- 面積: span.floor_plan_area ("約50㎡")
+- 住所: p.address span.text ("那覇市<br>壺川２丁目")
+- 駐車場: p.parking span.text ("1台/10,000円")
+- 建物情報: div.other_info ul > li (構造, 築年, 階数)
+- 物件種別: div.prop-label-box span.prop-label
+- 画像リンク: div.imgbox a[href] → 詳細ページ
+- ページネーション: div.insp_page-n ul > li > a
+  URL: ?page={page}-{items_per_page}
+"""
 
 import re
 
 import scrapy
 
 from src.scraper.items import RentalPropertyItem
+
+# グーホームの沖縄主要エリア (URL用)
+GOOHOME_AREAS = [
+    "naha", "urasoe", "ginowan", "okinawashi", "nago",
+    "itoman", "tomigusuku", "uruma", "nanjo",
+    "chatan", "nishihara", "haebaru", "yonabaru", "nakagusuku",
+    "kitanakagusuku", "kadena", "yomitan", "kin",
+    "motobu", "onna", "ginoza",
+    "miyakojima", "ishigaki",
+]
 
 
 class GoohomeSpider(scrapy.Spider):
@@ -15,221 +43,193 @@ class GoohomeSpider(scrapy.Spider):
     }
 
     def start_requests(self):
-        # グーホームの賃貸物件一覧ページ (沖縄全域)
-        yield scrapy.Request(
-            url="https://goohome.jp/rent/okinawa/",
-            callback=self.parse_list,
-        )
+        """各市町村の物件一覧ページにアクセス (部屋単位表示)"""
+        for area in GOOHOME_AREAS:
+            url = f"https://goohome.jp/chintai/mansion/{area}/?page=1-20"
+            yield scrapy.Request(url=url, callback=self.parse_list)
 
     def parse_list(self, response):
         """物件一覧ページをパース"""
-        # 各物件リンクを抽出
-        property_links = response.css("a[href*='/rent/detail/']::attr(href)").getall()
-        if not property_links:
-            # 代替セレクタ
-            property_links = response.css(".property-item a::attr(href)").getall()
+        cards = response.css("section.insp_caset")
 
-        for link in property_links:
-            yield response.follow(link, callback=self.parse_detail)
+        for card in cards:
+            item = RentalPropertyItem()
+            item["source"] = "goohome"
 
-        # 次のページ
-        next_page = response.css("a.next::attr(href)").get()
+            # 物件ID: div.inside_box の pno 属性
+            pno = card.css("div.inside_box::attr(pno)").get()
+            if not pno:
+                pno = card.css("input[name='pck[]']::attr(value)").get()
+            if not pno:
+                continue
+            item["source_id"] = pno
+
+            # 詳細ページURL
+            detail_href = card.css("div.imgbox a::attr(href)").get()
+            if not detail_href:
+                detail_href = card.css("p.detail_view_btn a::attr(href)").get()
+            if detail_href:
+                item["source_url"] = response.urljoin(detail_href)
+            else:
+                item["source_url"] = response.urljoin(
+                    f"/chintai/mansion/{pno}/"
+                )
+
+            # 物件種別ラベル
+            labels = card.css("div.prop-label-box span.prop-label::text").getall()
+            for label in labels:
+                label = label.strip()
+                if label in ("賃貸アパート", "賃貸マンション", "一戸建て", "賃貸テラスハウス"):
+                    item["property_type"] = label
+                    break
+
+            # 賃料: span.price + span.price_name
+            rent_value = card.css("span.price::text").get("")
+            rent_unit = card.css("span.price_name::text").get("")
+            if rent_value:
+                item["rent"] = f"{rent_value.strip()}{rent_unit.strip()}"
+
+            # 管理費: span.price_kanri ("管理費等:4,000円")
+            kanri_text = card.css("span.price_kanri::text").get("")
+            if kanri_text:
+                item["management_fee"] = kanri_text.strip()
+
+            # 敷金/礼金: span.price_sikirei ("敷1ヶ月/礼1ヶ月")
+            sikirei_text = card.css("span.price_sikirei::text").get("")
+            if sikirei_text:
+                deposit, key_money = self._parse_sikirei(sikirei_text)
+                item["deposit_months"] = deposit
+                item["key_money_months"] = key_money
+
+            # 保証金: span.price_hosyou ("保証金:-")
+            hosyou_text = card.css("span.price_hosyou::text").get("")
+            if hosyou_text and "保証金" in hosyou_text:
+                item["security_deposit"] = hosyou_text.strip()
+
+            # 間取り: span.floor_plan
+            floor_plan = card.css("span.floor_plan::text").get("")
+            if floor_plan:
+                item["floor_plan"] = floor_plan.strip()
+
+            # 面積: span.floor_plan_area ("約50㎡")
+            area_text = card.css("span.floor_plan_area::text").get("")
+            if area_text:
+                item["area_sqm"] = area_text.strip()
+
+            # 住所: p.address span.text
+            address_parts = card.css("p.address span.text ::text").getall()
+            if address_parts:
+                item["address"] = "".join(
+                    p.strip() for p in address_parts
+                ).strip()
+
+            # 駐車場: p.parking span.text
+            parking_text = card.css("p.parking span.text::text").get("")
+            if parking_text:
+                parking_text = parking_text.strip()
+                item["parking_available"] = parking_text
+                fee_match = re.search(r"([\d,]+)\s*円", parking_text)
+                if fee_match:
+                    item["parking_fee"] = int(
+                        fee_match.group(1).replace(",", "")
+                    )
+
+            # 建物情報: div.other_info ul > li (構造, 築年, 階数)
+            other_items = card.css("div.other_info ul > li::text").getall()
+            for info in other_items:
+                info = info.strip()
+                if not info:
+                    continue
+                # 構造: "鉄筋(RC造)", "鉄骨(S造)" etc.
+                if re.search(r"(RC|SRC|S造|木造|鉄筋|鉄骨|ブロック)", info):
+                    item["structure"] = info
+                # 築年: "築2026年(-)" or "築1991年(34年)"
+                elif info.startswith("築") or re.search(r"築\d+年", info):
+                    item["building_year"] = self._parse_building_year(info)
+                # 階数: "2階/5階建" or "4階/4階建"
+                elif re.search(r"\d+階", info):
+                    floor_num, total = self._parse_floors(info)
+                    item["floor_number"] = floor_num
+                    item["total_floors"] = total
+
+            # PR/コメント → 物件名の代わりに使用
+            comment = card.css("div.comment.web_pr p::text").get("")
+            if not comment:
+                comment = card.css("div.comment.web_pr h3::text").get("")
+            if comment:
+                item["name"] = comment.strip()[:100]
+
+            yield item
+
+        # ページネーション: div.insp_page-n 内の次ページリンク
+        # PC版: div.insp_page-n 内のリンク一覧から次ページを探す
+        current_url = response.url
+        page_links = response.css("div.insp_page-n a::attr(href)").getall()
+        next_page = self._find_next_page(current_url, page_links)
+
+        # フォールバック: SP版 "次の20件" リンク
         if not next_page:
-            next_page = response.css('a[rel="next"]::attr(href)').get()
+            next_page = response.css(
+                "ul.insp_prev-next li.next a::attr(href)"
+            ).get()
+
         if next_page:
             yield response.follow(next_page, callback=self.parse_list)
 
-    def parse_detail(self, response):
-        """物件詳細ページをパース"""
-        item = RentalPropertyItem()
-        item["source"] = "goohome"
-        item["source_url"] = response.url
-
-        # source_idをURLから抽出
-        m = re.search(r"/detail/(\d+)", response.url)
-        item["source_id"] = m.group(1) if m else response.url.split("/")[-1]
-
-        # 物件名
-        item["name"] = self._extract_text(response, [
-            "h1.property-name::text",
-            "h1::text",
-            ".property-title::text",
-        ])
-
-        # 住所
-        item["address"] = self._extract_text(response, [
-            ".address::text",
-            'th:contains("所在地") + td::text',
-            'dt:contains("所在地") + dd::text',
-        ])
-
-        # 賃料
-        rent_text = self._extract_text(response, [
-            ".rent .price::text",
-            ".price-main::text",
-            'th:contains("賃料") + td::text',
-        ])
-        item["rent"] = rent_text
-
-        # 管理費
-        item["management_fee"] = self._extract_text(response, [
-            ".management-fee::text",
-            'th:contains("管理費") + td::text',
-            'th:contains("共益費") + td::text',
-        ])
-
-        # 間取り
-        item["floor_plan"] = self._extract_text(response, [
-            ".floor-plan::text",
-            'th:contains("間取り") + td::text',
-        ])
-
-        # 面積
-        item["area_sqm"] = self._extract_text(response, [
-            ".area::text",
-            'th:contains("面積") + td::text',
-            'th:contains("専有面積") + td::text',
-        ])
-
-        # 築年
-        age_text = self._extract_text(response, [
-            'th:contains("築年") + td::text',
-            'th:contains("築年月") + td::text',
-        ])
-        if age_text:
-            item["building_year"] = self._parse_building_year(age_text)
-
-        # 構造
-        item["structure"] = self._extract_text(response, [
-            'th:contains("構造") + td::text',
-            'th:contains("建物構造") + td::text',
-        ])
-
-        # 物件種別
-        item["property_type"] = self._extract_text(response, [
-            'th:contains("物件種目") + td::text',
-            'th:contains("種別") + td::text',
-            ".property-type::text",
-        ])
-
-        # 階数
-        floor_text = self._extract_text(response, [
-            'th:contains("所在階") + td::text',
-            'th:contains("階") + td::text',
-        ])
-        if floor_text:
-            item["floor_number"], item["total_floors"] = self._parse_floors(floor_text)
-
-        # 交通
-        transport_text = self._extract_text(response, [
-            ".transport::text",
-            'th:contains("交通") + td::text',
-            'th:contains("最寄") + td::text',
-        ])
-        if transport_text:
-            station, minutes, t_type = self._parse_transport(transport_text)
-            item["nearest_station"] = station
-            item["station_walk_minutes"] = minutes
-            item["transport_type"] = t_type
-
-        # 駐車場
-        parking_text = self._extract_text(response, [
-            'th:contains("駐車場") + td::text',
-        ])
-        if parking_text:
-            item["parking_available"] = parking_text
-            fee_match = re.search(r"([\d,]+)\s*円", parking_text)
-            if fee_match:
-                item["parking_fee"] = int(fee_match.group(1).replace(",", ""))
-
-        # 敷金・礼金
-        item["deposit_months"] = self._extract_text(response, [
-            'th:contains("敷金") + td::text',
-        ])
-        item["key_money_months"] = self._extract_text(response, [
-            'th:contains("礼金") + td::text',
-        ])
-
-        # 設備抽出
-        equipment_text = " ".join(response.css(
-            'th:contains("設備") + td::text, .equipment ::text'
-        ).getall())
-        self._parse_equipment(item, equipment_text)
-
-        yield item
-
-    def _extract_text(self, response, selectors: list[str]) -> str | None:
-        for sel in selectors:
-            text = response.css(sel).get()
-            if text:
-                return text.strip()
-        return None
+    @staticmethod
+    def _parse_sikirei(text: str) -> tuple[str | None, str | None]:
+        """'敷1ヶ月/礼1ヶ月' → ('1ヶ月', '1ヶ月')"""
+        deposit = None
+        key_money = None
+        m = re.search(r"敷(\S+)", text)
+        if m:
+            val = m.group(1).rstrip("/")
+            deposit = val if val != "-" else None
+        m = re.search(r"礼(\S+)", text)
+        if m:
+            val = m.group(1).rstrip("/")
+            key_money = val if val != "-" else None
+        return deposit, key_money
 
     @staticmethod
     def _parse_building_year(text: str) -> int | None:
-        # 「2020年3月」→ 2020
-        m = re.search(r"(\d{4})\s*年", text)
+        """'築2026年(-)' or '築1991年(34年)' → 2026 or 1991"""
+        m = re.search(r"築(\d{4})年", text)
         if m:
             return int(m.group(1))
-        # 「令和2年」→ 2020
-        era_map = {"令和": 2018, "平成": 1988, "昭和": 1925}
-        for era, offset in era_map.items():
-            m = re.search(rf"{era}\s*(\d+)\s*年", text)
-            if m:
-                return offset + int(m.group(1))
+        # 「新築」
+        if "新築" in text:
+            from datetime import datetime
+            return datetime.now().year
         return None
 
     @staticmethod
     def _parse_floors(text: str) -> tuple[int | None, int | None]:
-        # 「3階 / 5階建」→ (3, 5)
-        m = re.search(r"(\d+)\s*階\s*/?\s*(\d+)\s*階建", text)
+        """'2階/5階建' → (2, 5), '4階建' → (None, 4)"""
+        m = re.search(r"(\d+)階/(\d+)階建", text)
         if m:
             return int(m.group(1)), int(m.group(2))
-        m = re.search(r"(\d+)\s*階", text)
+        m = re.search(r"(\d+)階建", text)
+        if m:
+            return None, int(m.group(1))
+        m = re.search(r"(\d+)階", text)
         if m:
             return int(m.group(1)), None
         return None, None
 
     @staticmethod
-    def _parse_transport(text: str) -> tuple[str | None, str | None, str | None]:
-        # 「ゆいレール 牧志駅 徒歩5分」or「バス停 xxx 徒歩3分」
-        transport_type = None
-        if "ゆいレール" in text or "モノレール" in text:
-            transport_type = "monorail"
-        elif "バス" in text:
-            transport_type = "bus"
-
-        # 駅/バス停名
-        m = re.search(r"(?:駅|バス停)\s*[「」]?(.+?)[「」]?\s*(?:徒歩|まで)", text)
-        station = m.group(1).strip() if m else None
-        if not station:
-            m = re.search(r"(?:ゆいレール|モノレール)\s*(.+?)\s*(?:駅|徒歩)", text)
-            station = m.group(1).strip() if m else None
-
-        # 徒歩分数
-        m = re.search(r"徒歩\s*(\d+)\s*分", text)
-        minutes = m.group(1) if m else None
-
-        return station, minutes, transport_type
-
-    @staticmethod
-    def _parse_equipment(item, text: str):
-        """設備テキストから各フラグを設定"""
-        if not text:
-            return
-        mapping = {
-            "has_aircon": ["エアコン", "冷暖房"],
-            "has_auto_lock": ["オートロック"],
-            "has_delivery_box": ["宅配ボックス", "宅配BOX"],
-            "has_bath_dryer": ["浴室乾燥", "浴室暖房乾燥"],
-            "has_reheating": ["追い焚き", "追焚", "追いだき"],
-            "has_washstand": ["独立洗面", "洗面化粧台"],
-            "has_indoor_laundry": ["室内洗濯", "洗濯機置場(室内)"],
-            "has_internet": ["インターネット", "ネット対応"],
-            "has_fiber": ["光ファイバー", "光回線"],
-            "has_bath_toilet_separate": ["バストイレ別", "バス・トイレ別", "セパレート"],
-            "has_flooring": ["フローリング"],
-            "has_pet_ok": ["ペット可", "ペット相談"],
-        }
-        for key, keywords in mapping.items():
-            item[key] = 1 if any(kw in text for kw in keywords) else 0
+    def _find_next_page(
+        current_url: str, page_links: list[str]
+    ) -> str | None:
+        """現在ページの次ページURLを特定"""
+        m = re.search(r"page=(\d+)-(\d+)", current_url)
+        if not m:
+            return None
+        current_page = int(m.group(1))
+        items_per_page = int(m.group(2))
+        next_page_num = current_page + 1
+        target = f"page={next_page_num}-{items_per_page}"
+        for link in page_links:
+            if target in link:
+                return link
+        return None
