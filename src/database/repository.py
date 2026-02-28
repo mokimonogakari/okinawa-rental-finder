@@ -298,6 +298,13 @@ class SavedSearchRepository:
             results.append(d)
         return results
 
+    def update_notify_enabled(self, search_id: int, enabled: bool) -> None:
+        self.conn.execute(
+            "UPDATE saved_searches SET notify_enabled = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+            (1 if enabled else 0, search_id),
+        )
+        self.conn.commit()
+
     def delete(self, search_id: int) -> None:
         self.conn.execute("DELETE FROM saved_searches WHERE id = ?", (search_id,))
         self.conn.commit()

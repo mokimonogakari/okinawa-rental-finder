@@ -154,28 +154,64 @@ def check_and_notify(config_path: str = "./config/settings.yaml"):
 
 
 def _matches_conditions(prop: dict, conditions: dict) -> bool:
-    """物件が検索条件に合致するかチェック"""
+    """物件が検索条件に合致するかチェック（検索ページと同じフィルタ）"""
     rent = prop.get("rent", 0)
+
+    # 市町村コード
+    if conditions.get("municipality_codes"):
+        if prop.get("municipality_code") not in conditions["municipality_codes"]:
+            return False
+
+    # 住所キーワード（サブエリア）
+    if conditions.get("address_keywords"):
+        address = prop.get("address", "")
+        if not any(kw in address for kw in conditions["address_keywords"]):
+            return False
+
+    # 賃料
     if conditions.get("rent_min") and rent < conditions["rent_min"]:
         return False
     if conditions.get("rent_max") and rent > conditions["rent_max"]:
         return False
 
-    if conditions.get("area_min") and prop.get("area_sqm"):
-        if prop["area_sqm"] < conditions["area_min"]:
-            return False
-
-    if conditions.get("municipalities"):
-        if prop.get("municipality") not in conditions["municipalities"]:
-            return False
-
+    # 間取り
     if conditions.get("floor_plans"):
         if prop.get("floor_plan") not in conditions["floor_plans"]:
             return False
 
-    if conditions.get("notify_bargains_only"):
-        score = prop.get("affordability_score")
-        if not score or score > 0.85:
+    # 面積
+    if conditions.get("area_min") and prop.get("area_sqm"):
+        if prop["area_sqm"] < conditions["area_min"]:
+            return False
+    if conditions.get("area_max") and prop.get("area_sqm"):
+        if prop["area_sqm"] > conditions["area_max"]:
+            return False
+
+    # 築年数
+    if conditions.get("building_age_max") is not None:
+        age = prop.get("building_age")
+        if age is not None and age > conditions["building_age_max"]:
+            return False
+
+    # 構造
+    if conditions.get("structures"):
+        if prop.get("structure") not in conditions["structures"]:
+            return False
+
+    # 駐車場
+    if conditions.get("parking_required"):
+        if not prop.get("parking_available"):
+            return False
+
+    # 設備
+    if conditions.get("equipment_keys"):
+        for key in conditions["equipment_keys"]:
+            if not prop.get(f"has_{key}"):
+                return False
+
+    # 旧フォーマット互換: municipalities（市町村名テキスト）
+    if conditions.get("municipalities"):
+        if prop.get("municipality") not in conditions["municipalities"]:
             return False
 
     return True

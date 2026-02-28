@@ -7,7 +7,7 @@ import streamlit as st
 import yaml
 
 from src.database.models import get_connection, init_db
-from src.database.repository import PropertyRepository
+from src.database.repository import PropertyRepository, SavedSearchRepository
 
 
 def load_conditions():
@@ -174,22 +174,27 @@ def render_search_page():
         sort_label = st.selectbox("並び替え", list(sort_options.keys()))
         sort_by, sort_order = sort_options[sort_label]
 
+    # --- 現在の検索条件を辞書として構築 ---
+    current_conditions = {
+        "municipality_codes": selected_areas,
+        "address_keywords": selected_address_keywords,
+        "rent_min": rent_range[0],
+        "rent_max": rent_range[1],
+        "floor_plans": selected_plans,
+        "area_min": area_range[0],
+        "area_max": area_range[1],
+        "building_age_max": max_age,
+        "structures": structure_values,
+        "parking_required": parking_required,
+        "equipment_keys": selected_equip,
+    }
+
     # --- メインコンテンツ: 検索結果 ---
     conn = get_db_connection()
     repo = PropertyRepository(conn)
 
     results = repo.search(
-        municipality_codes=selected_areas or None,
-        address_keywords=selected_address_keywords or None,
-        rent_min=rent_range[0],
-        rent_max=rent_range[1],
-        floor_plans=selected_plans or None,
-        area_min=area_range[0],
-        area_max=area_range[1],
-        building_age_max=max_age,
-        structures=structure_values or None,
-        parking_required=parking_required,
-        equipment_keys=selected_equip or None,
+        **current_conditions,
         sort_by=sort_by,
         sort_order=sort_order,
         limit=100,
@@ -202,7 +207,7 @@ def render_search_page():
         rent_max=rent_range[1],
     )
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1.5])
     with col1:
         st.metric("検索結果", f"{len(results)}件")
     with col2:
@@ -211,6 +216,9 @@ def render_search_page():
         stats = repo.get_statistics()
         avg_rent = stats.get("avg_rent")
         st.metric("平均賃料", f"{avg_rent:,.0f}円" if avg_rent else "データなし")
+    with col4:
+        st.markdown("&nbsp;")  # spacer
+        _render_save_button(conn, current_conditions)
 
     if not results:
         st.info("条件に合う物件が見つかりませんでした。条件を変更してお試しください。")
@@ -223,6 +231,22 @@ def render_search_page():
         _render_property_card(prop)
 
     conn.close()
+
+
+def _render_save_button(conn, conditions: dict):
+    """通知条件として保存するポップオーバー"""
+    with st.popover("🔔 この条件で通知"):
+        name = st.text_input("条件名", placeholder="例: 新都心2LDK 10万以下", key="save_cond_name")
+        if st.button("保存", key="save_cond_btn", type="primary"):
+            if not name:
+                st.error("条件名を入力してください")
+            else:
+                # None値や空リストを除去して保存
+                save_data = {k: v for k, v in conditions.items() if v}
+                search_repo = SavedSearchRepository(conn)
+                search_repo.save(name, save_data)
+                st.success(f"「{name}」を保存しました")
+                st.rerun()
 
 
 def _render_property_card(prop: dict):

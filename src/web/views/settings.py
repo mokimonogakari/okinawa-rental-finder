@@ -1,6 +1,6 @@
 """通知設定ページ"""
 
-import json
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -18,78 +18,94 @@ def get_db():
     return init_db(db_path)
 
 
+def _summarize_conditions(conds: dict) -> str:
+    """保存済み条件を日本語サマリにする"""
+    parts = []
+
+    if conds.get("municipality_codes"):
+        codes = conds["municipality_codes"]
+        # コード→市町村名の変換テーブル
+        config_path = Path(__file__).parent.parent.parent.parent / "config" / "search_conditions.yaml"
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                sc = yaml.safe_load(f)
+            code_to_name = {}
+            for cities in sc.get("areas", {}).values():
+                for c in cities:
+                    code_to_name[c["code"]] = c["name"]
+            names = [code_to_name.get(c, c) for c in codes]
+            parts.append(f"📍 {', '.join(names)}")
+        except Exception:
+            parts.append(f"📍 {len(codes)}市町村")
+
+    if conds.get("address_keywords"):
+        parts.append(f"🏘 地域: {', '.join(conds['address_keywords'])}")
+
+    rent_min = conds.get("rent_min")
+    rent_max = conds.get("rent_max")
+    if rent_min or rent_max:
+        parts.append(f"💰 {rent_min:,}〜{rent_max:,}円")
+
+    if conds.get("floor_plans"):
+        parts.append(f"🏠 {', '.join(conds['floor_plans'])}")
+
+    area_min = conds.get("area_min")
+    area_max = conds.get("area_max")
+    if area_min or area_max:
+        parts.append(f"📐 {area_min}〜{area_max}㎡")
+
+    if conds.get("building_age_max") is not None:
+        parts.append(f"🏗 築{conds['building_age_max']}年以内")
+
+    if conds.get("structures"):
+        parts.append(f"🧱 {', '.join(conds['structures'])}")
+
+    if conds.get("parking_required"):
+        parts.append("🚗 駐車場あり")
+
+    if conds.get("equipment_keys"):
+        parts.append(f"⚙️ 設備{len(conds['equipment_keys'])}項目")
+
+    return "\n".join(parts) if parts else "条件なし（全物件対象）"
+
+
 def render_settings_page():
     st.header("🔔 通知設定")
+
+    st.info("💡 物件検索ページで条件を設定し「🔔 この条件で通知」ボタンから保存できます。")
 
     conn = get_db()
     repo = SavedSearchRepository(conn)
 
     # --- 保存済み検索条件一覧 ---
-    st.subheader("保存済み検索条件")
+    st.subheader("保存済み通知条件")
     saved = repo.get_all()
 
     if not saved:
-        st.info("保存済みの検索条件がありません。物件検索ページで条件を保存してください。")
+        st.warning("通知条件が未設定です。物件検索ページで条件を保存してください。")
     else:
         for s in saved:
-            with st.expander(f"📋 {s['name']} (作成: {s['created_at']})"):
-                conds = s.get("conditions", {})
-                st.json(conds)
+            conds = s.get("conditions", {})
+            summary = _summarize_conditions(conds)
+            with st.expander(f"📋 {s['name']}", expanded=True):
+                st.text(summary)
 
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns([1, 1, 1])
                 with col1:
-                    notify = st.toggle(
+                    new_val = st.toggle(
                         "通知ON",
                         value=bool(s.get("notify_enabled")),
                         key=f"notify_{s['id']}",
                     )
+                    if new_val != bool(s.get("notify_enabled")):
+                        repo.update_notify_enabled(s["id"], new_val)
+                        st.rerun()
                 with col2:
                     if st.button("削除", key=f"del_{s['id']}", type="secondary"):
                         repo.delete(s["id"])
                         st.rerun()
-
-    st.divider()
-
-    # --- 新規検索条件保存 ---
-    st.subheader("新規検索条件を保存")
-
-    with st.form("save_search"):
-        name = st.text_input("条件名", placeholder="例: 那覇市2LDK 10万以下")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            rent_min = st.number_input("賃料下限 (円)", value=30000, step=5000)
-            rent_max = st.number_input("賃料上限 (円)", value=80000, step=5000)
-        with col2:
-            area_min = st.number_input("面積下限 (㎡)", value=25.0, step=5.0)
-            municipalities = st.text_input(
-                "市町村 (カンマ区切り)", placeholder="那覇市, 浦添市"
-            )
-
-        floor_plans = st.multiselect(
-            "間取り",
-            ["1R", "1K", "1DK", "1LDK", "2K", "2DK", "2LDK", "3K", "3DK", "3LDK"],
-        )
-
-        notify_bargains = st.checkbox("お得物件のみ通知 (割安度0.85以下)", value=False)
-
-        if st.form_submit_button("保存"):
-            if not name:
-                st.error("条件名を入力してください")
-            else:
-                conditions = {
-                    "rent_min": rent_min,
-                    "rent_max": rent_max,
-                    "area_min": area_min,
-                    "municipalities": [
-                        m.strip() for m in municipalities.split(",") if m.strip()
-                    ],
-                    "floor_plans": floor_plans,
-                    "notify_bargains_only": notify_bargains,
-                }
-                repo.save(name, conditions)
-                st.success(f"「{name}」を保存しました")
-                st.rerun()
+                with col3:
+                    st.caption(f"作成: {s['created_at'][:10]}")
 
     st.divider()
 
@@ -97,13 +113,8 @@ def render_settings_page():
     st.subheader("LINE Messaging API 設定")
     st.markdown("""
     設定手順は [docs/line-messaging-api-setup.md](https://github.com/mokimonogakari/okinawa-rental-finder/blob/main/docs/line-messaging-api-setup.md) を参照してください。
-
-    必要な環境変数:
-    - `LINE_CHANNEL_ACCESS_TOKEN`: チャネルアクセストークン（長期）
-    - `LINE_USER_IDS`: 送信先ユーザーID（カンマ区切り）
     """)
 
-    import os
     token_set = bool(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
     user_ids_set = bool(os.getenv("LINE_USER_IDS"))
     st.markdown(f"- チャネルアクセストークン: {'✅ 設定済み' if token_set else '❌ 未設定'}")
