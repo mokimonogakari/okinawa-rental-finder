@@ -1,4 +1,4 @@
-"""LINE Notify 通知機能"""
+"""LINE Messaging API 通知機能"""
 
 import json
 import logging
@@ -8,28 +8,55 @@ from pathlib import Path
 import requests
 import yaml
 
-from src.database.models import get_connection, init_db
+from src.database.models import init_db
 from src.database.repository import PropertyRepository, SavedSearchRepository
 
 logger = logging.getLogger(__name__)
 
-LINE_NOTIFY_API = "https://notify-api.line.me/api/notify"
+LINE_PUSH_API = "https://api.line.me/v2/bot/message/push"
+LINE_MULTICAST_API = "https://api.line.me/v2/bot/message/multicast"
+# Messaging API: 1メッセージあたり最大5000文字
+LINE_MESSAGE_MAX_CHARS = 5000
 
 
-def send_line_notification(message: str, token: str | None = None) -> bool:
-    """LINE Notifyでメッセージを送信"""
-    token = token or os.getenv("LINE_NOTIFY_TOKEN", "")
+def _get_token() -> str:
+    """チャネルアクセストークンを取得"""
+    return os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
+
+
+def _get_user_ids() -> list[str]:
+    """送信先ユーザーIDリストを取得"""
+    ids_str = os.getenv("LINE_USER_IDS", "")
+    return [uid.strip() for uid in ids_str.split(",") if uid.strip()]
+
+
+def send_line_message(message: str, token: str | None = None, user_ids: list[str] | None = None) -> bool:
+    """LINE Messaging APIでメッセージを送信"""
+    token = token or _get_token()
     if not token:
-        logger.error("LINE_NOTIFY_TOKEN が設定されていません")
+        logger.error("LINE_CHANNEL_ACCESS_TOKEN が設定されていません")
         return False
 
-    headers = {"Authorization": f"Bearer {token}"}
-    data = {"message": message}
+    user_ids = user_ids or _get_user_ids()
+    if not user_ids:
+        logger.error("LINE_USER_IDS が設定されていません")
+        return False
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    # 複数ユーザーへ送信: multicast API を使用
+    body = {
+        "to": user_ids,
+        "messages": [{"type": "text", "text": message}],
+    }
 
     try:
-        resp = requests.post(LINE_NOTIFY_API, headers=headers, data=data, timeout=10)
+        resp = requests.post(LINE_MULTICAST_API, headers=headers, json=body, timeout=10)
         if resp.status_code == 200:
-            logger.info("LINE通知送信成功")
+            logger.info(f"LINE通知送信成功 ({len(user_ids)}人)")
             return True
         else:
             logger.error(f"LINE通知エラー: {resp.status_code} {resp.text}")
@@ -39,9 +66,13 @@ def send_line_notification(message: str, token: str | None = None) -> bool:
         return False
 
 
+# 後方互換: 旧関数名でも呼べるようにする
+send_line_notification = send_line_message
+
+
 def send_test_notification() -> bool:
     """テスト通知を送信"""
-    return send_line_notification("\n🏠 沖縄賃貸ファインダー\nテスト通知です。正常に動作しています。")
+    return send_line_message("🏠 沖縄賃貸ファインダー\nテスト通知です。正常に動作しています。")
 
 
 def format_property_notification(prop: dict) -> str:
@@ -49,7 +80,6 @@ def format_property_notification(prop: dict) -> str:
     rent = prop.get("rent", 0)
     mgmt = prop.get("management_fee", 0)
     score = prop.get("affordability_score")
-    estimated = prop.get("estimated_rent")
 
     score_text = ""
     if score and score <= 0.85:
@@ -60,15 +90,15 @@ def format_property_notification(prop: dict) -> str:
         score_text = "🔴 割高"
 
     lines = [
-        f"\n🏠 {prop.get('name', '物件名不明')}",
+        f"🏠 {prop.get('name', '物件名不明')}",
         f"📍 {prop.get('address', '-')}",
         f"💰 {rent:,}円/月 (管理費: {mgmt:,}円)",
         f"🏗 {prop.get('floor_plan', '-')} / {prop.get('area_sqm', '-')}㎡ / 築{prop.get('building_age', '?')}年",
         f"🅿 駐車場: {'あり' if prop.get('parking_available') else 'なし'}",
     ]
 
-    if estimated:
-        lines.append(f"📊 推定賃料: {estimated:,}円 {score_text}")
+    if score_text:
+        lines.append(f"📊 推定賃料: {prop.get('estimated_rent', '?'):,}円 {score_text}")
 
     if prop.get("source_url"):
         lines.append(f"🔗 {prop['source_url']}")
@@ -100,7 +130,6 @@ def check_and_notify(config_path: str = "./config/settings.yaml"):
     saved_searches = search_repo.get_all()
     if not saved_searches:
         logger.info("保存済み検索条件なし。全新着物件を通知します。")
-        # 全件通知 (最大10件)
         _send_batch(unnotified[:10], prop_repo)
         conn.close()
         return
@@ -157,28 +186,27 @@ def _send_batch(properties: list[dict], repo: PropertyRepository):
     if not properties:
         return
 
-    header = f"\n📋 沖縄賃貸ファインダー 新着通知\n本日の新着: {len(properties)}件\n{'─' * 20}"
+    header = f"📋 沖縄賃貸ファインダー 新着通知\n本日の新着: {len(properties)}件\n{'─' * 20}"
     messages = [header]
 
     for prop in properties:
         messages.append(format_property_notification(prop))
 
-    full_message = "\n".join(messages)
+    full_message = "\n\n".join(messages)
 
-    # LINE Notifyの文字数制限 (1000文字)
-    if len(full_message) > 1000:
-        # 複数回に分けて送信
-        current = header + "\n"
+    # Messaging API の文字数制限 (5000文字)
+    if len(full_message) > LINE_MESSAGE_MAX_CHARS:
+        current = header + "\n\n"
         for prop in properties:
             msg = format_property_notification(prop)
-            if len(current) + len(msg) > 950:
-                send_line_notification(current)
+            if len(current) + len(msg) > LINE_MESSAGE_MAX_CHARS - 100:
+                send_line_message(current)
                 current = ""
-            current += msg + "\n"
+            current += msg + "\n\n"
         if current.strip():
-            send_line_notification(current)
+            send_line_message(current)
     else:
-        send_line_notification(full_message)
+        send_line_message(full_message)
 
     # 通知済みフラグ
     prop_ids = [p["id"] for p in properties]
@@ -187,5 +215,9 @@ def _send_batch(properties: list[dict], repo: PropertyRepository):
 
 
 if __name__ == "__main__":
+    import sys
     logging.basicConfig(level=logging.INFO)
-    check_and_notify()
+    if len(sys.argv) > 1 and sys.argv[1] == "--test":
+        send_test_notification()
+    else:
+        check_and_notify()

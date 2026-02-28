@@ -93,13 +93,21 @@ def render_settings_page():
 
     st.divider()
 
-    # --- LINE Notify設定 ---
-    st.subheader("LINE Notify 設定")
+    # --- LINE Messaging API 設定 ---
+    st.subheader("LINE Messaging API 設定")
     st.markdown("""
-    1. [LINE Notify](https://notify-bot.line.me/) にアクセス
-    2. マイページ → トークンを発行
-    3. 発行されたトークンを `.env` ファイルの `LINE_NOTIFY_TOKEN` に設定
+    設定手順は [docs/line-messaging-api-setup.md](https://github.com/mokimonogakari/okinawa-rental-finder/blob/main/docs/line-messaging-api-setup.md) を参照してください。
+
+    必要な環境変数:
+    - `LINE_CHANNEL_ACCESS_TOKEN`: チャネルアクセストークン（長期）
+    - `LINE_USER_IDS`: 送信先ユーザーID（カンマ区切り）
     """)
+
+    import os
+    token_set = bool(os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
+    user_ids_set = bool(os.getenv("LINE_USER_IDS"))
+    st.markdown(f"- チャネルアクセストークン: {'✅ 設定済み' if token_set else '❌ 未設定'}")
+    st.markdown(f"- ユーザーID: {'✅ 設定済み' if user_ids_set else '❌ 未設定'}")
 
     # 通知テスト
     if st.button("テスト通知を送信"):
@@ -109,7 +117,7 @@ def render_settings_page():
             if result:
                 st.success("テスト通知を送信しました")
             else:
-                st.error("通知の送信に失敗しました。トークンを確認してください。")
+                st.error("通知の送信に失敗しました。環境変数を確認してください。")
         except Exception as e:
             st.error(f"エラー: {e}")
 

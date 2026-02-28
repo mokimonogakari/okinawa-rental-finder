@@ -31,4 +31,4 @@ notification:
 
 api_keys:
   reinfolib: "${REINFOLIB_API_KEY}"
-  line_notify: "${LINE_NOTIFY_TOKEN}"
+  line_channel_access_token: "${LINE_CHANNEL_ACCESS_TOKEN}"

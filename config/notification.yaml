@@ -1,8 +1,10 @@
-# LINE Notify 通知設定
-line_notify:
+# LINE Messaging API 通知設定
+line:
   enabled: true
-  token: "${LINE_NOTIFY_TOKEN}"
-  endpoint: "https://notify-api.line.me/api/notify"
+  channel_access_token: "${LINE_CHANNEL_ACCESS_TOKEN}"
+  user_ids: "${LINE_USER_IDS}"
+  push_endpoint: "https://api.line.me/v2/bot/message/push"
+  multicast_endpoint: "https://api.line.me/v2/bot/message/multicast"
 
 schedule:
   mode: "batch"  # batch: まとめ通知 | realtime: 即時通知
