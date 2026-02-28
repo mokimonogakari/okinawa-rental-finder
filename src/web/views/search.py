@@ -37,6 +37,9 @@ def render_search_page():
         # エリア選択
         st.markdown("**エリア**")
         selected_areas = []
+        selected_address_keywords = []
+        sub_areas_config = conditions.get("sub_areas", {})
+
         for region, cities in conditions["areas"].items():
             with st.expander(f"📍 {region}", expanded=(region in ["南部", "中部"])):
                 city_names = [c["name"] for c in cities]
@@ -50,6 +53,17 @@ def render_search_page():
                     for c in cities:
                         if c["name"] == name:
                             selected_areas.append(c["code"])
+
+                # サブエリア選択（対象市町村が選択されている場合のみ表示）
+                for c in cities:
+                    if c["name"] in selected and c["code"] in sub_areas_config:
+                        for sa in sub_areas_config[c["code"]]:
+                            if st.checkbox(
+                                f"  └ {sa['name']}",
+                                key=f"sub_{c['code']}_{sa['name']}",
+                                help=sa.get("note", ""),
+                            ):
+                                selected_address_keywords.extend(sa["keywords"])
 
         st.divider()
 
@@ -166,6 +180,7 @@ def render_search_page():
 
     results = repo.search(
         municipality_codes=selected_areas or None,
+        address_keywords=selected_address_keywords or None,
         rent_min=rent_range[0],
         rent_max=rent_range[1],
         floor_plans=selected_plans or None,

@@ -47,6 +47,7 @@ class PropertyRepository:
     def search(
         self,
         municipality_codes: list[str] | None = None,
+        address_keywords: list[str] | None = None,
         rent_min: int | None = None,
         rent_max: int | None = None,
         floor_plans: list[str] | None = None,
@@ -73,6 +74,13 @@ class PropertyRepository:
             conditions.append(f"municipality_code IN ({placeholders})")
             for i, code in enumerate(municipality_codes):
                 params[f"mc{i}"] = code
+
+        if address_keywords:
+            kw_conds = []
+            for i, kw in enumerate(address_keywords):
+                kw_conds.append(f"address LIKE :akw{i}")
+                params[f"akw{i}"] = f"%{kw}%"
+            conditions.append(f"({' OR '.join(kw_conds)})")
 
         if rent_min is not None:
             conditions.append("rent >= :rent_min")
