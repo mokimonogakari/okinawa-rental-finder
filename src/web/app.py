@@ -38,14 +38,14 @@ page = st.sidebar.radio(
 )
 
 if page == "🔍 物件検索":
-    from src.web.pages.search import render_search_page
+    from src.web.views.search import render_search_page
     render_search_page()
 elif page == "📊 価格分析":
-    from src.web.pages.analysis import render_analysis_page
+    from src.web.views.analysis import render_analysis_page
     render_analysis_page()
 elif page == "🔔 通知設定":
-    from src.web.pages.settings import render_settings_page
+    from src.web.views.settings import render_settings_page
     render_settings_page()
 elif page == "⚙️ 管理":
-    from src.web.pages.admin import render_admin_page
+    from src.web.views.admin import render_admin_page
     render_admin_page()
