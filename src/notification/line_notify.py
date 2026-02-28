@@ -59,7 +59,7 @@ def send_line_message(message: str, token: str | None = None, user_ids: list[str
             logger.info(f"LINE通知送信成功 ({len(user_ids)}人)")
             return True
         else:
-            logger.error(f"LINE通知エラー: {resp.status_code} {resp.text}")
+            logger.error(f"LINE通知エラー: status={resp.status_code}")
             return False
     except requests.RequestException as e:
         logger.error(f"LINE通知送信失敗: {e}")

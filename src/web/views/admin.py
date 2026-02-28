@@ -1,8 +1,11 @@
 """管理ページ - スクレイピング実行・モデル学習"""
 
+import logging
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 import streamlit as st
 import yaml
@@ -91,8 +94,9 @@ def render_admin_page():
                     )
                 else:
                     st.warning(f"学習に問題がありました: {results}")
-            except Exception as e:
-                st.error(f"エラー: {e}")
+            except Exception:
+                logger.exception("処理エラー")
+                st.error("処理中にエラーが発生しました。ログを確認してください。")
 
     # --- 地価データ取得 ---
     st.subheader("地価データ取得")
@@ -111,8 +115,9 @@ def render_admin_page():
                 fetch_and_store_land_prices(db_path, api_key=api_key)
                 st.success("地価データ更新完了")
                 st.rerun()
-            except Exception as e:
-                st.error(f"エラー: {e}")
+            except Exception:
+                logger.exception("処理エラー")
+                st.error("処理中にエラーが発生しました。ログを確認してください。")
 
     conn.close()
 

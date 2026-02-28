@@ -6,6 +6,7 @@ import base64
 import json
 import logging
 import os
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 logger = logging.getLogger(__name__)
@@ -13,12 +14,15 @@ logger = logging.getLogger(__name__)
 CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
 USER_IDS_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "data", "line_user_ids.txt")
 
+# LINE ユーザーIDの形式: U + 32桁の16進数
+LINE_USER_ID_PATTERN = re.compile(r"^U[0-9a-f]{32}$")
+
 
 def verify_signature(body: bytes, signature: str) -> bool:
     """Webhookリクエストの署名を検証"""
     if not CHANNEL_SECRET:
-        logger.warning("LINE_CHANNEL_SECRET が未設定のため署名検証をスキップ")
-        return True
+        logger.error("LINE_CHANNEL_SECRET が未設定のためリクエストを拒否")
+        return False
     digest = hmac.new(
         CHANNEL_SECRET.encode("utf-8"), body, hashlib.sha256
     ).digest()
@@ -28,6 +32,10 @@ def verify_signature(body: bytes, signature: str) -> bool:
 
 def save_user_id(user_id: str) -> None:
     """ユーザーIDをファイルに保存"""
+    if not LINE_USER_ID_PATTERN.match(user_id):
+        logger.warning("不正なユーザーID形式を検出")
+        return
+
     os.makedirs(os.path.dirname(USER_IDS_FILE), exist_ok=True)
 
     existing = set()
@@ -38,9 +46,9 @@ def save_user_id(user_id: str) -> None:
     if user_id not in existing:
         with open(USER_IDS_FILE, "a") as f:
             f.write(user_id + "\n")
-        logger.info(f"新しいユーザーID保存: {user_id}")
+        logger.info(f"新しいユーザーID保存: {user_id[:8]}***")
     else:
-        logger.info(f"既存ユーザーID: {user_id}")
+        logger.debug(f"既存ユーザーID: {user_id[:8]}***")
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -62,13 +70,11 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
                 if event_type == "follow" and user_id:
                     save_user_id(user_id)
-                    logger.info(f"友だち追加: {user_id}")
                 elif event_type == "message" and user_id:
                     save_user_id(user_id)
-                    logger.info(f"メッセージ受信 (userId記録): {user_id}")
 
         except json.JSONDecodeError:
-            logger.error("Invalid JSON")
+            logger.warning("不正なJSONリクエスト")
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -76,7 +82,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         self.wfile.write(b'{"status": "ok"}')
 
     def log_message(self, format, *args):
-        logger.info(format % args)
+        logger.debug(format % args)
 
 
 def run_webhook_server(port: int = 8502):

@@ -5,6 +5,30 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
+# propertiesテーブルの許可カラム名（SQLインジェクション防止）
+ALLOWED_PROPERTY_COLUMNS = {
+    "source", "source_id", "source_url", "name", "address",
+    "municipality", "municipality_code", "latitude", "longitude",
+    "rent", "management_fee", "deposit_months", "key_money_months", "security_deposit",
+    "property_type", "structure", "floor_plan", "room_count", "area_sqm",
+    "building_year", "building_age", "floor_number", "total_floors",
+    "nearest_station", "station_walk_minutes", "transport_type",
+    "parking_available", "parking_fee", "parking_spaces",
+    "has_aircon", "has_auto_lock", "has_delivery_box", "has_bath_dryer",
+    "has_reheating", "has_washstand", "has_indoor_laundry", "has_internet",
+    "has_fiber", "has_bath_toilet_separate", "has_flooring", "has_pet_ok",
+    "lease_type", "guarantor_required", "brokerage_fee_months", "move_in_date",
+    "estimated_rent", "affordability_score", "estimated_at",
+    "scraped_at", "updated_at", "is_active", "notified",
+}
+
+# 設備カラムの許可キー
+VALID_EQUIPMENT_KEYS = {
+    "aircon", "auto_lock", "delivery_box", "bath_dryer", "reheating",
+    "washstand", "indoor_laundry", "internet", "fiber",
+    "bath_toilet_separate", "flooring", "pet_ok",
+}
+
 
 class PropertyRepository:
     """物件データのリポジトリ"""
@@ -14,7 +38,7 @@ class PropertyRepository:
 
     def upsert_property(self, data: dict[str, Any]) -> int:
         """物件データをupsert (存在すれば更新、なければ挿入)"""
-        columns = [k for k in data.keys() if k != "id"]
+        columns = [k for k in data.keys() if k != "id" and k in ALLOWED_PROPERTY_COLUMNS]
         placeholders = ", ".join(f":{c}" for c in columns)
         col_names = ", ".join(columns)
 
@@ -123,8 +147,9 @@ class PropertyRepository:
 
         if equipment_keys:
             for key in equipment_keys:
-                col = f"has_{key}"
-                conditions.append(f"{col} = 1")
+                if key not in VALID_EQUIPMENT_KEYS:
+                    continue
+                conditions.append(f"has_{key} = 1")
 
         if floor_min is not None:
             conditions.append("floor_number >= :floor_min")
