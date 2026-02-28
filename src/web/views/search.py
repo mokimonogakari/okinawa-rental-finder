@@ -251,33 +251,35 @@ def _render_save_button(conn, conditions: dict):
 
 def _render_property_card(prop: dict):
     """物件カードを表示"""
-    # 割安度に応じたスタイル
+    rent = prop.get("rent", 0)
+    est = prop.get("estimated_rent")
     score = prop.get("affordability_score")
+
+    # 割安度バッジ
     if score and score <= 0.85:
         badge = "🟢 お得"
-        card_class = "bargain"
     elif score and score >= 1.15:
         badge = "🔴 割高"
-        card_class = "expensive"
     else:
         badge = ""
-        card_class = ""
+
+    # 築年数表示（None対応）
+    age = prop.get("building_age")
+    age_text = f"築{age}年" if age is not None else ""
 
     with st.container():
         col1, col2 = st.columns([3, 1])
 
         with col1:
             name = prop.get("name", "物件名不明")
-            rent = prop.get("rent", 0)
             mgmt = prop.get("management_fee", 0)
             st.markdown(f"### {name} {badge}")
-            st.markdown(
-                f"**💰 {rent:,}円/月** "
-                f"(管理費: {mgmt:,}円) "
-                f"| **{prop.get('floor_plan', '-')}** "
-                f"| **{prop.get('area_sqm', '-')}㎡** "
-                f"| 築{prop.get('building_age', '?')}年"
-            )
+            specs = f"**💰 {rent:,}円/月** (管理費: {mgmt:,}円)"
+            specs += f" | **{prop.get('floor_plan', '-')}**"
+            specs += f" | **{prop.get('area_sqm', '-')}㎡**"
+            if age_text:
+                specs += f" | {age_text}"
+            st.markdown(specs)
             st.caption(
                 f"📍 {prop.get('address', '-')} "
                 f"| 🏗 {prop.get('structure', '-')} "
@@ -290,17 +292,14 @@ def _render_property_card(prop: dict):
                 )
 
         with col2:
-            if prop.get("estimated_rent"):
-                est = prop["estimated_rent"]
-                diff = rent - est
-                st.metric(
-                    "推定賃料",
-                    f"{est:,}円",
-                    delta=f"{diff:+,}円",
-                    delta_color="inverse",
-                )
-                if score:
-                    st.caption(f"割安度: {score:.2f}")
+            if est:
+                savings = est - rent  # 正の値 = お得, 負の値 = 割高
+                if savings > 0:
+                    st.metric("相場", f"{est:,}円", delta=f"{savings:,}円 お得", delta_color="normal")
+                elif savings < 0:
+                    st.metric("相場", f"{est:,}円", delta=f"{savings:,}円 割高", delta_color="inverse")
+                else:
+                    st.metric("相場", f"{est:,}円", delta="適正価格")
             if prop.get("source_url"):
                 st.link_button("詳細を見る", prop["source_url"])
 

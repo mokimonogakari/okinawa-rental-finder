@@ -26,7 +26,7 @@ st.markdown("""
 
 st.markdown('<div class="main-header">🏠 沖縄賃貸ファインダー</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="sub-header">宅建士監修の検索条件 × AI価格推定で、沖縄の賃貸物件を賢く探す</div>',
+    '<div class="sub-header">沖縄特化の検索条件 × 相場比較で、賃貸物件をお得に探す</div>',
     unsafe_allow_html=True,
 )
 
