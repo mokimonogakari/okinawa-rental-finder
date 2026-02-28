@@ -2,10 +2,12 @@
 
 SPAサイトのため、内部JSON API経由でデータ取得 (2026年2月確認):
 - エンドポイント: https://www.e-uchina.net/api/search
-- パラメータ: searchType=jukyo, city_code={JIS市区町村コード}
+- パラメータ: searchType=jukyo, city[0]={JIS市区町村コード}, perPage=50
 - レスポンス: JSON (Laravel Paginator形式)
   data.bukkens.data[] に物件レコード配列
-  ページネーション: page=N, per_page=20, last_page=N
+  ページネーション: page=N, per_page=50, last_page=N
+- 個別物件API: /api/bukken/{bukken_hid}
+- 認証不要、CSRFトークン不要
 
 主な物件フィールド:
 - bukken_hid: 物件ID ("r-5980-2250510-0344")
@@ -70,11 +72,11 @@ class UchinaSpider(scrapy.Spider):
     }
 
     def start_requests(self):
-        """各市町村のAPI検索エンドポイントにリクエスト"""
+        """各市町村のAPI検索エンドポイントにリクエスト (perPage=50で効率化)"""
         for city_code, city_name in OKINAWA_CITY_CODES:
             url = (
                 f"https://www.e-uchina.net/api/search"
-                f"?searchType=jukyo&city_code={city_code}"
+                f"?searchType=jukyo&city[0]={city_code}&perPage=50"
             )
             yield scrapy.Request(
                 url=url,
