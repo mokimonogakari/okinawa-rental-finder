@@ -25,10 +25,40 @@ def get_db_connection():
     return init_db(db_path)
 
 
+def _load_saved_conditions(conn):
+    """保存済み通知条件をロードし、選択された条件をsession_stateに適用"""
+    repo = SavedSearchRepository(conn)
+    saved = repo.get_all()
+    if not saved:
+        return
+    # 保存済み条件をボタンとして表示
+    st.markdown("**保存済み条件で検索:**")
+    cols = st.columns(min(len(saved), 4))
+    for i, s in enumerate(saved[:4]):
+        with cols[i % 4]:
+            if st.button(f"📋 {s['name']}", key=f"quick_{s['id']}", use_container_width=True):
+                st.session_state["applied_saved"] = s["conditions"]
+                st.rerun()
+
+    # リセットボタン
+    if "applied_saved" in st.session_state:
+        if st.button("✕ 条件をリセット", key="reset_saved", type="secondary"):
+            del st.session_state["applied_saved"]
+            st.rerun()
+
+
 def render_search_page():
     st.header("🔍 物件検索")
 
     conditions = load_conditions()
+
+    # --- 保存済み条件のクイック検索 ---
+    conn_for_saved = get_db_connection()
+    _load_saved_conditions(conn_for_saved)
+    conn_for_saved.close()
+
+    # 保存済み条件が適用されている場合、デフォルト値を上書き
+    applied = st.session_state.get("applied_saved", {})
 
     # --- サイドバーに検索フィルタ ---
     with st.sidebar:
@@ -40,12 +70,22 @@ def render_search_page():
         selected_address_keywords = []
         sub_areas_config = conditions.get("sub_areas", {})
 
+        # 保存済み条件から市町村コード→名前のデフォルト値を構築
+        applied_codes = set(applied.get("municipality_codes", []))
+        code_to_name = {}
+        for cities_list in conditions["areas"].values():
+            for c in cities_list:
+                code_to_name[c["code"]] = c["name"]
+
         for region, cities in conditions["areas"].items():
             with st.expander(f"📍 {region}", expanded=(region in ["南部", "中部"])):
                 city_names = [c["name"] for c in cities]
+                # 保存済み条件のデフォルト値
+                default_cities = [c["name"] for c in cities if c["code"] in applied_codes]
                 selected = st.multiselect(
                     f"{region}の市町村",
                     city_names,
+                    default=default_cities,
                     key=f"area_{region}",
                     label_visibility="collapsed",
                 )
@@ -69,11 +109,15 @@ def render_search_page():
 
         # 賃料
         st.markdown("**賃料 (円/月)**")
+        default_rent = (
+            applied.get("rent_min", 30000),
+            applied.get("rent_max", 100000),
+        )
         rent_range = st.slider(
             "賃料範囲",
             min_value=conditions["rent"]["min"],
             max_value=conditions["rent"]["max"],
-            value=(30000, 100000),
+            value=default_rent,
             step=conditions["rent"]["step"],
             label_visibility="collapsed",
         )
@@ -82,19 +126,28 @@ def render_search_page():
 
         # 間取り
         st.markdown("**間取り**")
+        default_plans = [
+            p for p in applied.get("floor_plans", [])
+            if p in conditions["floor_plan"]["options"]
+        ]
         selected_plans = st.multiselect(
             "間取り選択",
             conditions["floor_plan"]["options"],
+            default=default_plans,
             label_visibility="collapsed",
         )
 
         # 面積
         st.markdown("**専有面積 (㎡)**")
+        default_area = (
+            float(applied.get("area_min", 20.0)),
+            float(applied.get("area_max", 100.0)),
+        )
         area_range = st.slider(
             "面積範囲",
             min_value=float(conditions["area_size"]["min"]),
             max_value=float(conditions["area_size"]["max"]),
-            value=(20.0, 100.0),
+            value=default_area,
             step=5.0,
             label_visibility="collapsed",
         )
@@ -333,12 +386,10 @@ def _render_property_card(prop: dict):
                         unsafe_allow_html=True,
                     )
             if prop.get("source_url"):
-                st.markdown(
-                    f'<div style="text-align:right;">'
-                    f'<a href="{prop["source_url"]}" target="_blank" '
-                    f'style="font-size:0.8em;">詳細を見る →</a>'
-                    f'</div>',
-                    unsafe_allow_html=True,
+                st.link_button(
+                    "📄 詳細を見る",
+                    prop["source_url"],
+                    use_container_width=True,
                 )
 
         st.divider()
