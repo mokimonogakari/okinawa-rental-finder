@@ -148,9 +148,13 @@ class DataCleansingPipeline:
             return None
         if isinstance(value, (int, float)):
             return float(value)
-        s = str(value).replace("㎡", "").replace("m2", "").replace(",", "").strip()
+        s = str(value).replace("㎡", "").replace("m²", "").replace("m2", "").replace(",", "").replace("約", "").strip()
         try:
-            return float(s)
+            v = float(s)
+            # 専有面積として異常な値を除外 (一般的な賃貸は5〜300㎡)
+            if v < 5 or v > 300:
+                return None
+            return v
         except ValueError:
             return None
 

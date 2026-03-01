@@ -254,12 +254,13 @@ def _render_property_card(prop: dict):
     rent = prop.get("rent", 0)
     est = prop.get("estimated_rent")
     score = prop.get("affordability_score")
+    mgmt = prop.get("management_fee", 0)
 
     # 割安度バッジ
     if score and score <= 0.85:
-        badge = "🟢 お得"
+        badge = '<span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.8em;">お得</span>'
     elif score and score >= 1.15:
-        badge = "🔴 割高"
+        badge = '<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.8em;">割高</span>'
     else:
         badge = ""
 
@@ -268,21 +269,23 @@ def _render_property_card(prop: dict):
     age_text = f"築{age}年" if age is not None else ""
 
     with st.container():
-        col1, col2 = st.columns([3, 1])
+        # 上段: 物件名 + 賃料（大きく目立つ）
+        left, right = st.columns([3, 2])
 
-        with col1:
+        with left:
             name = prop.get("name", "物件名不明")
-            mgmt = prop.get("management_fee", 0)
-            st.markdown(f"### {name} {badge}")
-            specs = f"**💰 {rent:,}円/月** (管理費: {mgmt:,}円)"
-            specs += f" | **{prop.get('floor_plan', '-')}**"
-            specs += f" | **{prop.get('area_sqm', '-')}㎡**"
+            st.markdown(f"**{name}** {badge}", unsafe_allow_html=True)
+            # 物件スペック
+            specs_parts = [prop.get("floor_plan", "-")]
+            area = prop.get("area_sqm")
+            if area:
+                specs_parts.append(f"{area}㎡")
             if age_text:
-                specs += f" | {age_text}"
-            st.markdown(specs)
+                specs_parts.append(age_text)
+            specs_parts.append(prop.get("structure") or "-")
+            st.caption(" / ".join(specs_parts))
             st.caption(
                 f"📍 {prop.get('address', '-')} "
-                f"| 🏗 {prop.get('structure', '-')} "
                 f"| 🚗 {'あり' if prop.get('parking_available') else 'なし'}"
             )
             if prop.get("nearest_station"):
@@ -291,16 +294,51 @@ def _render_property_card(prop: dict):
                     f"{icon} {prop['nearest_station']} 徒歩{prop.get('station_walk_minutes', '?')}分"
                 )
 
-        with col2:
+        with right:
+            # 実際の賃料を大きく表示
+            rent_man = rent / 10000
+            if rent_man == int(rent_man):
+                rent_display = f"{int(rent_man)}"
+            else:
+                rent_display = f"{rent_man:.2f}"
+            st.markdown(
+                f'<div style="text-align:right;">'
+                f'<span style="font-size:2em;font-weight:bold;color:#1e40af;">{rent_display}</span>'
+                f'<span style="font-size:0.9em;color:#1e40af;">万円/月</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if mgmt:
+                st.markdown(
+                    f'<div style="text-align:right;margin-top:-10px;">'
+                    f'<span style="font-size:0.75em;color:#6b7280;">管理費 {mgmt:,}円</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            # 相場比較（小さく補足表示）
             if est:
-                savings = est - rent  # 正の値 = お得, 負の値 = 割高
+                savings = est - rent
                 if savings > 0:
-                    st.metric("相場", f"{est:,}円", delta=f"{savings:,}円 お得", delta_color="normal")
+                    st.markdown(
+                        f'<div style="text-align:right;">'
+                        f'<span style="font-size:0.8em;color:#10b981;">相場より {savings:,}円 お得</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
                 elif savings < 0:
-                    st.metric("相場", f"{est:,}円", delta=f"{savings:,}円 割高", delta_color="inverse")
-                else:
-                    st.metric("相場", f"{est:,}円", delta="適正価格")
+                    st.markdown(
+                        f'<div style="text-align:right;">'
+                        f'<span style="font-size:0.8em;color:#ef4444;">相場より {-savings:,}円 割高</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
             if prop.get("source_url"):
-                st.link_button("詳細を見る", prop["source_url"])
+                st.markdown(
+                    f'<div style="text-align:right;">'
+                    f'<a href="{prop["source_url"]}" target="_blank" '
+                    f'style="font-size:0.8em;">詳細を見る →</a>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
 
         st.divider()

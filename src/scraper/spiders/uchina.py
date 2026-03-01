@@ -159,8 +159,8 @@ class UchinaSpider(scrapy.Spider):
         if madori:
             item["floor_plan"] = madori
 
-        # 面積
-        space_metr = rec.get("house_space_metr") or rec.get("man_senyu_metr")
+        # 面積 (専有面積を優先、なければ建物面積)
+        space_metr = rec.get("man_senyu_metr") or rec.get("house_space_metr")
         if space_metr:
             item["area_sqm"] = f"{space_metr}㎡"
 
