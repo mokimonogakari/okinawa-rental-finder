@@ -120,10 +120,10 @@ class PropertyRepository:
                 params[f"fp{i}"] = fp
 
         if area_min is not None:
-            conditions.append("area_sqm >= :area_min")
+            conditions.append("(area_sqm IS NULL OR area_sqm >= :area_min)")
             params["area_min"] = area_min
         if area_max is not None:
-            conditions.append("area_sqm <= :area_max")
+            conditions.append("(area_sqm IS NULL OR area_sqm <= :area_max)")
             params["area_max"] = area_max
 
         if building_age_max is not None:

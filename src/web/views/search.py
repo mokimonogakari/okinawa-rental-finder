@@ -302,12 +302,28 @@ def _render_save_button(conn, conditions: dict):
                 st.rerun()
 
 
+SOURCE_LABELS = {
+    "uchina": ("うちなーらいふ", "#f97316"),
+    "goohome": ("グーホーム", "#3b82f6"),
+    "suumo": ("SUUMO", "#22c55e"),
+    "homes": ("HOME'S", "#a855f7"),
+}
+
+
 def _render_property_card(prop: dict):
     """物件カードを表示"""
     rent = prop.get("rent", 0)
     est = prop.get("estimated_rent")
     score = prop.get("affordability_score")
     mgmt = prop.get("management_fee", 0)
+
+    # 掲載媒体バッジ
+    source = prop.get("source", "")
+    src_label, src_color = SOURCE_LABELS.get(source, (source, "#6b7280"))
+    source_badge = (
+        f'<span style="background:{src_color};color:#fff;padding:1px 6px;'
+        f'border-radius:3px;font-size:0.7em;margin-right:4px;">{src_label}</span>'
+    )
 
     # 割安度バッジ
     if score and score <= 0.85:
@@ -327,7 +343,7 @@ def _render_property_card(prop: dict):
 
         with left:
             name = prop.get("name", "物件名不明")
-            st.markdown(f"**{name}** {badge}", unsafe_allow_html=True)
+            st.markdown(f"{source_badge}**{name}** {badge}", unsafe_allow_html=True)
             # 物件スペック
             specs_parts = [prop.get("floor_plan", "-")]
             area = prop.get("area_sqm")
