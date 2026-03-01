@@ -75,11 +75,20 @@ def send_test_notification() -> bool:
     return send_line_message("🏠 沖縄賃貸ファインダー\nテスト通知です。正常に動作しています。")
 
 
+SOURCE_DISPLAY_NAMES = {
+    "uchina": "うちなーらいふ",
+    "goohome": "グーホーム",
+    "suumo": "SUUMO",
+    "homes": "HOME'S",
+}
+
+
 def format_property_notification(prop: dict) -> str:
     """物件情報を通知用テキストにフォーマット"""
     rent = prop.get("rent", 0)
     mgmt = prop.get("management_fee", 0)
     score = prop.get("affordability_score")
+    source = SOURCE_DISPLAY_NAMES.get(prop.get("source", ""), prop.get("source", ""))
 
     score_text = ""
     if score and score <= 0.85:
@@ -90,7 +99,7 @@ def format_property_notification(prop: dict) -> str:
         score_text = "🔴 割高"
 
     lines = [
-        f"🏠 {prop.get('name', '物件名不明')}",
+        f"🏠 {prop.get('name', '物件名不明')} [{source}]",
         f"📍 {prop.get('address', '-')}",
         f"💰 {rent:,}円/月 (管理費: {mgmt:,}円)",
         f"🏗 {prop.get('floor_plan', '-')} / {prop.get('area_sqm', '-')}㎡ / 築{prop.get('building_age', '?')}年",
@@ -129,26 +138,34 @@ def check_and_notify(config_path: str = "./config/settings.yaml"):
     # 保存済み検索条件を取得
     saved_searches = search_repo.get_all()
     if not saved_searches:
-        logger.info("保存済み検索条件なし。全新着物件を通知します。")
-        _send_batch(unnotified[:10], prop_repo)
+        logger.info("保存済み検索条件なし。全未通知物件を通知済みにマーク。")
+        all_ids = [p["id"] for p in unnotified]
+        prop_repo.mark_notified(all_ids)
         conn.close()
         return
 
-    # 各検索条件に対してマッチング
+    # 通知ONの保存済み条件に対してマッチング
     matched_props = set()
-    for search in saved_searches:
-        if not search.get("notify_enabled"):
-            continue
-        conds = search.get("conditions", {})
-        for prop in unnotified:
-            if _matches_conditions(prop, conds):
-                matched_props.add(prop["id"])
+    enabled_searches = [s for s in saved_searches if s.get("notify_enabled")]
+
+    if not enabled_searches:
+        logger.info("通知ONの検索条件なし")
+    else:
+        for search in enabled_searches:
+            conds = search.get("conditions", {})
+            for prop in unnotified:
+                if _matches_conditions(prop, conds):
+                    matched_props.add(prop["id"])
 
     if matched_props:
         matched_list = [p for p in unnotified if p["id"] in matched_props]
-        _send_batch(matched_list[:10], prop_repo)
-    else:
-        logger.info("条件に合致する新着物件なし")
+        _send_batch(matched_list, prop_repo)
+
+    # 全未通知物件を通知済みにマーク（未マッチ物件の蓄積を防止）
+    all_ids = [p["id"] for p in unnotified if p["id"] not in matched_props]
+    if all_ids:
+        prop_repo.mark_notified(all_ids)
+        logger.info(f"未マッチ {len(all_ids)}件を通知済みにマーク")
 
     conn.close()
 
