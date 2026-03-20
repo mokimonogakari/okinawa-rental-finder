@@ -157,7 +157,14 @@ def render_search_page():
         # 築年数
         age_options = conditions["building_age"]["options"]
         age_labels = [a["label"] for a in age_options]
-        selected_age = st.selectbox("築年数", age_labels, index=len(age_labels) - 1)
+        # 保存済み条件の築年数をデフォルトに
+        _age_default_idx = len(age_labels) - 1
+        if applied.get("building_age_max") is not None:
+            for _ai, _ao in enumerate(age_options):
+                if _ao["value"] == applied["building_age_max"]:
+                    _age_default_idx = _ai
+                    break
+        selected_age = st.selectbox("築年数", age_labels, index=_age_default_idx)
         max_age = None
         for a in age_options:
             if a["label"] == selected_age and a["value"] is not None:
@@ -166,9 +173,14 @@ def render_search_page():
         # 構造
         st.markdown("**構造**")
         structure_options = conditions["structure"]["options"]
+        _default_structures = []
+        if applied.get("structures"):
+            _struct_val_to_label = {s["value"]: s["label"] for s in structure_options}
+            _default_structures = [_struct_val_to_label[v] for v in applied["structures"] if v in _struct_val_to_label]
         selected_structures = st.multiselect(
             "構造選択",
             [s["label"] for s in structure_options],
+            default=_default_structures,
             label_visibility="collapsed",
         )
         structure_values = [
@@ -185,10 +197,11 @@ def render_search_page():
 
         # 駐車場
         parking_opts = conditions["parking"]["options"]
+        _parking_idx = 1 if applied.get("parking_required") else 0
         parking_sel = st.radio(
             "🚗 駐車場",
             [p["label"] for p in parking_opts],
-            index=0,
+            index=_parking_idx,
             help=conditions["parking"]["note"],
         )
         parking_required = parking_sel == "必須"
@@ -196,21 +209,22 @@ def render_search_page():
         # 設備
         st.markdown("**設備条件**")
         selected_equip = []
+        _applied_equip = set(applied.get("equipment_keys", []))
         with st.expander("沖縄で重要な設備", expanded=True):
             for eq in conditions["equipment"]["essential"]:
-                if st.checkbox(f"{eq['priority']} {eq['label']}", key=f"eq_{eq['key']}"):
+                if st.checkbox(f"{eq['priority']} {eq['label']}", key=f"eq_{eq['key']}", value=eq["key"] in _applied_equip):
                     selected_equip.append(eq["key"])
                 if st.checkbox.__name__:  # always true, just to add caption
                     st.caption(eq.get("note", ""))
 
         with st.expander("その他の設備"):
             for eq in conditions["equipment"]["comfort"]:
-                if st.checkbox(eq["label"], key=f"eq_{eq['key']}"):
+                if st.checkbox(eq["label"], key=f"eq_{eq['key']}", value=eq["key"] in _applied_equip):
                     selected_equip.append(eq["key"])
 
         with st.expander("ペット"):
             for eq in conditions["equipment"]["pet"]:
-                if st.checkbox(eq["label"], key=f"eq_{eq['key']}"):
+                if st.checkbox(eq["label"], key=f"eq_{eq['key']}", value=eq["key"] in _applied_equip):
                     selected_equip.append(eq["key"])
 
         st.divider()

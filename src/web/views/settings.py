@@ -90,8 +90,13 @@ def render_settings_page():
             with st.expander(f"📋 {s['name']}", expanded=True):
                 st.text(summary)
 
-                col1, col2, col3 = st.columns([1, 1, 1])
+                col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
                 with col1:
+                    if st.button("🔍 検索", key=f"search_{s['id']}", type="primary", use_container_width=True):
+                        st.session_state["applied_saved"] = s["conditions"]
+                        st.session_state["nav_page"] = "🔍 物件検索"
+                        st.rerun()
+                with col2:
                     new_val = st.toggle(
                         "通知ON",
                         value=bool(s.get("notify_enabled")),
@@ -100,11 +105,11 @@ def render_settings_page():
                     if new_val != bool(s.get("notify_enabled")):
                         repo.update_notify_enabled(s["id"], new_val)
                         st.rerun()
-                with col2:
+                with col3:
                     if st.button("削除", key=f"del_{s['id']}", type="secondary"):
                         repo.delete(s["id"])
                         st.rerun()
-                with col3:
+                with col4:
                     st.caption(f"作成: {s['created_at'][:10]}")
 
     st.divider()

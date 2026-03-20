@@ -31,9 +31,15 @@ st.markdown(
 )
 
 # ページナビゲーション
+_pages = ["🔍 物件検索", "📊 価格分析", "🔔 通知設定", "⚙️ 管理"]
+# 別ページからの遷移要求があればradio描画前にキーを上書き
+if "nav_page" in st.session_state:
+    st.session_state["nav_radio"] = st.session_state.pop("nav_page")
+
 page = st.sidebar.radio(
     "メニュー",
-    ["🔍 物件検索", "📊 価格分析", "🔔 通知設定", "⚙️ 管理"],
+    _pages,
+    key="nav_radio",
     label_visibility="collapsed",
 )
 

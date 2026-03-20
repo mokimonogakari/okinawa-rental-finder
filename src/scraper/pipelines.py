@@ -189,6 +189,7 @@ class SQLitePipeline:
     def __init__(self):
         self.conn = None
         self.repo = None
+        self.seen_source_ids: dict[str, list[str]] = {}
 
     def open_spider(self, spider):
         settings_path = Path(__file__).parent.parent.parent / "config" / "settings.yaml"
@@ -199,6 +200,12 @@ class SQLitePipeline:
         self.repo = PropertyRepository(self.conn)
 
     def close_spider(self, spider):
+        # 今回取得できなかった物件を非アクティブにする（掲載終了検出）
+        if self.repo:
+            for source, source_ids in self.seen_source_ids.items():
+                count = self.repo.mark_inactive(source, source_ids)
+                if count:
+                    spider.logger.info(f"掲載終了検出: {source} で {count}件を非アクティブ化")
         if self.conn:
             self.conn.close()
 
@@ -208,6 +215,11 @@ class SQLitePipeline:
             spider.logger.warning(f"賃料なしのためスキップ: {data.get('source_url', 'unknown')}")
             return item
         self.repo.upsert_property(data)
+        # 取得したsource_idを記録（掲載終了検出用）
+        source = data.get("source", "")
+        source_id = data.get("source_id", "")
+        if source and source_id:
+            self.seen_source_ids.setdefault(source, []).append(source_id)
         return item
 
 
